@@ -1,0 +1,123 @@
+#!/bin/bash
+# /*************************************************************************************************************************
+#                  ZBXLAB: RHEL Linux OS security updates
+#                    Date: 3/18/2022
+#                   Notes: Testing on zbxlab before moving to PROD. Then we will update HMUZBXPROXY to 8.4
+#
+#       REVISIONS:
+#      Ver        Date        Author                     Description
+#      ---------  ----------  -------------------        --------------------------------------------------------------------
+#      1.0        3/18/2022   Todd M. Ochsenbein         1. zbxlab-5.2.7 server RHEL Linux OS security updates
+#      1.1        3/18/2022   Todd M. Ochsenbein         2. added some outputs to show the number of updates for each level
+#      1.2        3/24/2022   Boopathi Rajan             3. Enabled various logging, prompting user to update and yum outputs
+#      1.3        3/24/2022   Boopathi Rajan             4. updating with --nobest option and auto differentiate kernel & reboot
+#   *************************************************************************************************************************/
+
+k1=$(rpm -q kernel | tail -n 1)
+currentDate=$(date)
+recipients="boopathi.rajan@redirontech.com pradeep.madhu@redirontech.com deepak.tharayil@redirontech.com"
+
+# Display kernel and OS info
+echo -e "\nKernel Information:\nKernel: $k1\n"
+echo -e "OS Version:\n$(cat /etc/*release | grep release)\n"
+
+# Check for security updates
+yum_updates=$(yum updateinfo list updates security | grep -E '/Sec.' | wc -l)
+echo -e "$yum_updates security packages are available"
+
+if [ "$yum_updates" -eq 0 ]; then
+  echo "No Packages marked for Update"
+
+  # Send email for no updates
+  mail -s "Linux Patch Update - No Updates Required" $recipients <<EOF
+Subject: Linux Patch Update - No Updates Required
+Date: $currentDate
+
+No security packages required updates on $(hostname).
+EOF
+
+else
+  # Log output to files
+  exec > linux_patches.log.$(date +%Y-%m-%d) 2>&1
+  echo -e "\n------------------------------- Kernel Information ----------------------------"
+  echo -e "Kernel_DETAILS:\t\t$(uname -a)"
+  echo -e "Kernel:\t\t$(uname -r)"
+  echo -e "-------------------------------------------------------------------------------\n"
+
+  df -h >> linux_patches.log.$(date +%Y-%m-%d) 2>&1
+  df -m >> linux_patches.log.$(date +%Y-%m-%d) 2>&1
+
+  echo -e "------------------------------- OS Version ------------------------------------"
+  echo -e "$(cat /etc/*release | grep release)"
+  echo -e "-------------------------------------------------------------------------------\n"
+
+  echo -e "------------------------------- Security Updates ----------------------------"
+  echo -e "Important: $(yum updateinfo list updates security | grep Important | wc -l)"
+  echo -e "Moderate: $(yum updateinfo list updates security | grep Moderate | wc -l)"
+  echo -e "Low: $(yum updateinfo list updates security | grep Low | wc -l)\n"
+
+  yum clean all
+
+  # Update security packages
+  yum update --security -y > packages.log.$(date +%Y-%m-%d) 2>&1 || {
+    echo -e "\n------------------------------- YUM updating with --nobest option ----------------------------"
+    yum update --security -y --nobest >> packages.log.$(date +%Y-%m-%d) 2>&1
+  }
+
+  # Kernel version after update
+  k2=$(rpm -q kernel | tail -n 1)
+  echo -e "\n******************************* After Update ***********************************\n"
+  echo -e "------------------------------- Kernel Information ----------------------------"
+  echo -e "Kernel:\t\t$(yum list installed kernel | tail -1 | awk '{print $2}')"
+  echo -e "-------------------------------------------------------------------------------\n"
+
+  df -h >> linux_patches.log.$(date +%Y-%m-%d) 2>&1
+  df -m >> linux_patches.log.$(date +%Y-%m-%d) 2>&1
+
+  echo -e "------------------------------- OS Version ------------------------------------"
+  echo -e "$(cat /etc/*release | grep release)"
+  echo -e "-------------------------------------------------------------------------------\n"
+
+  echo -e "Check the logfile linux_patches.log.$(date +%Y-%m-%d) for more information"
+  echo -e "Check the logfile packages.log.$(date +%Y-%m-%d) for more information"
+
+  # Send email with kernel update and security packages details
+  if [ "$k1" != "$k2" ]; then
+    mail -s "Linux Patch Update - Kernel Updated and Reboot Initiated on $(hostname)" $recipients <<EOF
+Subject: Linux Patch Update - Kernel Updated and Reboot Initiated on $(hostname)
+Date: $currentDate
+
+Kernel before update: $k1
+Kernel after update: $k2
+Due to the Linux patch update, the kernel has been updated from $k1 to $k2, and a reboot is being initiated.
+
+Security Updates:
+Important: $(yum updateinfo list updates security | grep Important | wc -l)
+Moderate: $(yum updateinfo list updates security | grep Moderate | wc -l)
+Low: $(yum updateinfo list updates security | grep Low | wc -l)
+
+Log file: linux_patches.log.$(date +%Y-%m-%d)
+Packages log file: packages.log.$(date +%Y-%m-%d)
+EOF
+	sleep 10
+    reboot
+  else
+    # If kernel was not updated, send a message that reboot is not required
+    mail -s "Linux Patch Update - Kernel Not Updated on $(hostname)" $recipients <<EOF
+Subject: Linux Patch Update - Kernel Not Updated on $(hostname)
+Date: $currentDate
+
+Kernel before update: $k1
+Kernel after update: $k2
+"The Linux patch update did not include a kernel update; therefore, the system has not been rebooted."
+
+Security Updates:
+Important: $(yum updateinfo list updates security | grep Important | wc -l)
+Moderate: $(yum updateinfo list updates security | grep Moderate | wc -l)
+Low: $(yum updateinfo list updates security | grep Low | wc -l)
+
+Log file: linux_patches.log.$(date +%Y-%m-%d)
+Packages log file: packages.log.$(date +%Y-%m-%d)
+EOF
+  fi
+fi

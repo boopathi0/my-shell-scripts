@@ -1,0 +1,130 @@
+# /*************************************************************************************************************************
+#          Script purpose: Zabbix-Agent2 install where zabbix-agent is previously installed on RHEL/OEL6.x
+#                    Date: 4/4/2023
+#                   Notes: At some point get the agents to install from yum.
+#               IMPORTANT: rpms must be installed as root user.
+#
+#       REQUIREMENTS: Many prerequisites steps are required for datasafe to function the way RedIron is setting it up.
+#
+#      Ver        Date        Contributors               Description
+#      ---------  ----------  -------------------        --------------------------------------------------------------------
+#      1.0        4/4/2023    Todd M. Ochsenbein         1. Stop zabbix-agent and turn off.
+#      1.1        4/4/2023    Todd M. Ochsenbein         2. Install Zabbix-agent2 rpms and configure the zabbix.agent2.conf.
+#      1.2        4/4/2023    Boopathi Rajan             3. Added the sed commands to insert the lines in the conf file.
+#
+#       REVISIONS:
+#      Ver        Date        Contributors               Description
+#      ---------  ----------  -------------------        --------------------------------------------------------------------
+#      1.0        4/5/2023    Todd M. Ochsenbein         1. Changed the script format and removed extra systemctl starts.
+#      1.1        7/31/2024   Todd M. Ochsenbein         2. Added logging, and customer proxy IPs as variables.
+#   *************************************************************************************************************************/
+
+#!/bin/bash
+
+####################################
+# Variables
+####################################
+
+PCHI_proxy=10.233.54.6
+HMU_proxy=10.92.187.6
+ZUR_proxy=10.22.128.6
+HOSTNAME_VAR=$HOSTNAME
+RPMS_DIR=/tmp/zbx-rpms/
+LOG_FILE=/var/log/zabbix_agent_install.log
+
+####################################
+# Logging function
+####################################
+
+# Get the OS version
+os_version=$(grep VERSION_ID /etc/os-release | cut -d '=' -f 2 | tr -d '"')
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a $LOG_FILE
+}
+
+# Check if the OS version starts with 6.
+if [[ ! "$os_version" == 6.* ]]; then
+    log "OS version is $os_version. Exiting the script."
+    exit 1
+fi
+####################################
+# Validate variables
+####################################
+
+log "Starting Zabbix Agent installation script"
+
+if [[ -z "$HOSTNAME_VAR" ]]; then
+    log "Error: HOSTNAME_VAR is not set. Exiting."
+    exit 1
+fi
+
+if [[ ! -d "$RPMS_DIR" ]]; then
+    log "Error: RPMS_DIR ($RPMS_DIR) does not exist. Exiting."
+    exit 1
+fi
+
+log "Variables validated successfully"
+
+####################################
+# Stop Zabbix agent and turn off
+####################################
+
+log "Stopping Zabbix agent"
+service zabbix-agent stop
+chkconfig zabbix-agent off
+
+####################################
+# Install for RHEL/OEL 6.x
+####################################
+
+log "Installing RPMs from $RPMS_DIR"
+cd $RPMS_DIR
+rpm -ihv *.rpm
+
+####################################
+# Create run dir for Zabbix-el6
+####################################
+
+log "Creating run directory for Zabbix"
+mkdir -p /run/zabbix
+touch /run/zabbix/agent.sock
+chown zabbix:monitoring /run/zabbix/agent.sock
+
+####################################
+# Update Zabbix configuration
+####################################
+
+echo "PCHI_proxy=10.233.54.6"
+echo "HMU_proxy=10.92.187.6"
+echo "ZUR_proxy=10.22.128.6"
+echo "ZBX-server=172.31.34.231"
+read -p "According to your environment, enter your ZBX proxy or server IP address."  RESP
+log "Updating Zabbix configuration"
+sed -i "s/ServerActive=127.0.0.1/ServerActive=127.0.0.1,$RESP/g" /etc/zabbix/zabbix_agent2.conf
+sed -i "s/Server=127.0.0.1/Server=127.0.0.1,$RESP/g" /etc/zabbix/zabbix_agent2.conf
+sed -i "s/Hostname=Zabbix server/Hostname=$HOSTNAME_VAR/g" /etc/zabbix/zabbix_agent2.conf
+sed -i '290 i Include=/u01/app/zabbix-agent/userparams.conf.d' /etc/zabbix/zabbix_agent2.conf
+cd /u01/app/zabbix-agent/bin
+mv zabbix_sender zabbix_sender.old
+mv zabbix_get zabbix_get.old
+cp -rf /usr/bin/zabbix_get .
+cp -rf /usr/bin/zabbix_sender .
+
+
+####################################
+# Restart Zabbix-Agent2
+####################################
+
+log "Restarting Zabbix agent"
+sleep 5
+service zabbix-agent2 restart
+chkconfig zabbix-agent2 on
+
+####################################
+# Check the logs for errors
+####################################
+
+log "Checking Zabbix agent logs for errors"
+sleep 5
+tail -f /var/log/zabbix/zabbix_agent2.log | tee -a $LOG_FILE &
+log "Zabbix Agent installation script completed"
