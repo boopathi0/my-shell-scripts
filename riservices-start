@@ -1,0 +1,24 @@
+#!/bin/sh
+
+
+if [ -d /etc/systemd/system ] ; then
+ 
+	RC3=/etc/systemd/system
+fi
+
+for x in `ls $RC3/ri-*.service`; do
+
+   service=$(basename  $x);
+
+systemctl daemon-reload 
+
+  if (systemctl is-active --quiet $service); then
+	   echo " $service is already running!!!..."
+  else
+     [ -x /usr/bin/systemctl ] && echo "Starting $service..."
+    /bin/systemctl start $service 2> /dev/null
+  fi
+
+done
+
+wait

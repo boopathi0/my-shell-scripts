@@ -1,0 +1,26 @@
+#!/bin/sh
+
+
+if [ -d /etc/systemd/system ] ; then
+ 
+	RC3=/etc/systemd/system
+fi
+
+for x in `ls $RC3/ri-*.service`; do
+
+   service=$(basename  $x);
+
+
+
+
+if (systemctl is-active --quiet $service); then
+     [ -x /usr/bin/systemctl ] && echo "Stopping $service..."
+    /bin/systemctl stop $service 2> /dev/null
+else
+	echo " $service is already not running..."
+    
+fi
+
+done
+
+wait

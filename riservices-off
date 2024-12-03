@@ -1,0 +1,7 @@
+#!/bin/sh
+
+for x in `ls /etc/systemd/system/ri-*.service | grep -v firstboot` ; do
+
+  systemctl disable `basename $x` 2> /dev/null
+
+done

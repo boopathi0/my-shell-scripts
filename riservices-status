@@ -1,0 +1,11 @@
+#!/bin/sh
+
+printf "\n";
+printf "\n";
+
+printf "REDIRON SERVICES                                 STATUS\n";
+printf "\n";
+echo -e "----------------------------------------------------------------------------------"
+echo -en '\n'
+
+systemctl -a |grep  -P 'ri-'
