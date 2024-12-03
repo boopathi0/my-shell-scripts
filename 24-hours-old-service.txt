@@ -1,0 +1,46 @@
+Add the below line in /etc/zabbix/zabbix_agent2.conf file
+
+AllowKey=system.run[*]
+
+restart the service and configure this script  /u01/app/zabbix-agent/scripts/jpos_uptime_min.sh 
+for fetch the value of total total runtime of the service
+
+#!/bin/bash
+
+start_time=$(systemctl show -p ActiveEnterTimestamp ri-jpos.service | cut -d'=' -f2)
+
+start_epoch=$(date -d "$start_time" +%s)
+
+current_epoch=$(date +%s)
+
+diff_seconds=$((current_epoch - start_epoch))
+
+diff_minutes=$((diff_seconds / 60))
+echo  $diff_minutes
+
+set the permission of the file 
+
+chmod 750 jpos_uptime_min.sh
+
+chown -R zabbix:monitoring jpos_uptime_min.sh
+
+create the item and trigger on dashboard in the “24 hours old” template.
+
+Item:-
+
+Name: Zabbix Agent 2 Service Uptime
+
+Key: system.run["/u01/app/zabbix-agent/scripts/jpos_uptime_min.sh"]
+
+Type of information: Numeric unsigned
+
+Units: minutes
+
+Update interval: 1m
+
+Trigger:-
+
+Name: JPOS service is not cycled in the last 24 hours
+
+Expression: last(/24 hours old/system.run["/u01/app/zabbix-agent/scripts/jpos_uptime_min.sh"])> 1440
+
