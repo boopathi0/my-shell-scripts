@@ -1,0 +1,19 @@
+[Unit]
+Description=RI-Jboss1 Application Server
+#Requires=ri-jboss2.service
+After=network.target
+
+[Service]
+Type=forking
+User=jboss1
+Group=tomax
+Environment=JBOSS_HOME=/u01/app/jboss1/jboss-as JBOSS_LOG_DIR=/u01/app/jboss1/jboss-as/server/default/log
+ExecStartPre=/u01/app/jboss1/jboss-as/bin/setenv.sh
+ExecStart=/u01/app/jboss1/jboss-as/bin/start.sh
+#ExecStop=/u01/app/jboss1/jboss-as/bin/stop.sh
+#ExecStopPost=/u01/app/jboss1/jboss-as/bin/rmtemp.sh
+TimeoutStartSec=180
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

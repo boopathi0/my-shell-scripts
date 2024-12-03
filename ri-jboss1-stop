@@ -1,0 +1,14 @@
+#!/bin/sh
+
+service=ri-jboss1.service 
+
+   if [ -f /etc/systemd/system/ri-jboss1.service ] ; then
+           echo "Stopping $service..."
+     /bin/systemctl stop $service  2> /dev/null
+   else
+   	echo "File not available /etc/systemd/system/ri-jboss1.service" 
+   fi
+
+
+wait
+

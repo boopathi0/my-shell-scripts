@@ -1,0 +1,55 @@
+#!/bin/sh
+
+#version 1.2
+
+#      Ver        Date        Author                     Description
+#      ---------  ----------  -------------------        --------------------------------------------------------------------
+#      1.0        5/25/2022   Boopathirajan D         	 starting jboss service through systemctl 
+#      1.2        6/16/2022   Boopathirajan D         	 starting jboss wait till log started message and print the date&time
+
+
+JBOSS_VERSION=7.3.0.GA
+service=ri-jboss1.service
+APP_BASE=/u01/app
+JBOSS_HOME=$APP_BASE/jboss1/jboss-as
+START_MSG="(WildFly Core 10.1.2.Final-redhat-00001) started"
+JBOSS_LOG_DIR=$JBOSS_HOME/server/default/log
+JBOSS_BIN_DIR=$JBOSS_HOME/bin
+#Backward compatiblity
+
+systemctl daemon-reload
+
+  if (systemctl is-active --quiet $service); then
+           echo " $service is already running!!!..."
+   else
+	
+	   if [ $? -ne 0 ]; then
+             #   echo "STARTING JBOSS"
+	echo "Starting $service..."
+     	/bin/systemctl start $service  2> /dev/null
+                
+		# Keep looking for the Startup message in the log before exiting the script
+                # Will exit with a warning message if the "started in" message was not received in 5 minutes (300 seconds)
+                # Note: There is still some risk that the message will scroll past the next tail command within a second
+              # retval=$? 
+	      # count=0
+               # timeout=300
+                #while [ -z "$last_startup" -a "$retval" -eq 0 -a "$count" -lt "$timeout" ]; do
+                #        echo -n
+                #        sleep 1
+			last_startup=`tail $JBOSS_LOG_DIR/server.log | grep "$START_MSG" | awk -F, '{print $1}'`
+		#	retval=$?
+                 #       let "count += 1"
+               # done
+
+	if [ ! -z "$last_startup"  ] ; then
+                       echo "$service started at $last_startup" 1>&2
+	       fi
+               #if
+                #       [ "$count" -eq "$timeout" ]; then
+                 #      echo "WARNING: Timeout waiting for $service startup message after $timeout seconds,check the log file $JBOSS_LOG_DIR/server.log" 1>&2 
+		  #     exit 1
+                #fi
+        fi
+fi
+#fi	
